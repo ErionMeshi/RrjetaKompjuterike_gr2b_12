@@ -39,7 +39,7 @@ java Client
 Ky projekt është bërë për qëllime mësimore dhe tregon bazat e komunikimit në rrjet me UDP dhe menaxhimin e klientëve.
 
 👥 Autorët gr.12
-Erion Meshi
-Arbnor Dragaj
-Erduard Basha
-Orlind Bajraktari
+Erion Meshi,
+Arbnor Dragaj,
+Erduard Basha,
+Orlind Bajraktari.
