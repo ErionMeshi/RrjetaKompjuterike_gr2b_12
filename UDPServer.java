@@ -34,6 +34,9 @@ public static void main(String[] args) {
             serverSocket.receive(packeta);
 
             String clientAddress = packeta.getAddress().toString() +  ":" + packeta.getPort();
+
+            // Sa here klienti dergon mesazh ruajme kohen aktuale
+                lastSeen.put(clientAddress, System.currentTimeMillis());
         
         if (!clients.contains(clientAddress)) {
                     if (clients.size() >= MAX_Clients) {
@@ -44,6 +47,8 @@ public static void main(String[] args) {
                         System.out.println("Klient i ri u lidh: " + clientAddress);
                     }
                 } System.out.println("Mesazh nga " + clientAddress);
+                 // Kontrollon dhe largo klientet qe kane kaluar kohen e lejuar
+                removeInactiveClients();
         }
 
 
@@ -52,5 +57,28 @@ public static void main(String[] args) {
     e.printStackTrace();
 } 
 }
+ // Kjo metode kontrollon se cilet kliente kane qene joaktiv
+    public static void removeInactiveClients() {
+        long now = System.currentTimeMillis();
+
+        Iterator<Map.Entry<String, Long>> iterator = lastSeen.entrySet().iterator();
+
+        while (iterator.hasNext()) {
+            Map.Entry<String, Long> entry = iterator.next();
+
+            // Nese klienti nuk ka derguar mesazh per me shume se TIMEOUT
+            if (now - entry.getValue() > TIMEOUT) {
+                String inactiveClient = entry.getKey();
+
+                // Hiqet nga lastSeen
+                iterator.remove();
+
+                // Hiqet edhe nga lista e klienteve aktiv
+                clients.remove(inactiveClient);
+
+                System.out.println("Klienti u largua per shkak te joaktivitetit: " + inactiveClient);
+            }
+        }
+    }
 
 }
