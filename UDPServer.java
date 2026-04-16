@@ -10,6 +10,15 @@ public static final int MAX_Clients = 4;
 
 
 public static Set<String> clients = new HashSet<>();
+
+ // ================== 5 ==================
+    // TIMEOUT 
+    public static final long TIMEOUT = 30000; // 30 sekonda
+
+    // bahet rujtja e kohes te fundit kur klienti ka derguar mesazh
+    public static Map<String, Long> lastSeen = new HashMap<>();
+    // ==================  5 ==================
+
 public static void main(String[] args) {
 
     try {
