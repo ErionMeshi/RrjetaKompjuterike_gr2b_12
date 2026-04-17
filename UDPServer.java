@@ -21,7 +21,8 @@ public static Set<String> clients = new HashSet<>();
     // ==================  5 ==================
    //  --6 
     //  klienti do te kete qasje te plote
-    public static final String ADMIN_CLIENT = "/127.0.0.1:5001";
+   public static final String ADMIN_CLIENT = "/127.0.0.1:5001"; 
+    
 
     // Folderi ku serveri do te shikoje fajllat
     public static final String SERVER_FOLDER = "files";
@@ -44,6 +45,7 @@ public static void main(String[] args) {
 
             // Sa here klienti dergon mesazh ruajme kohen aktuale
                 lastSeen.put(clientAddress, System.currentTimeMillis());
+                 String message = new String(packeta.getData(), 0, packeta.getLength()); 
         
         if (!clients.contains(clientAddress)) {
                     if (clients.size() >= MAX_Clients) {
@@ -53,7 +55,10 @@ public static void main(String[] args) {
                         clients.add(clientAddress);
                         System.out.println("Klient i ri u lidh: " + clientAddress);
                     }
-                } System.out.println("Mesazh nga " + clientAddress);
+                } 
+                 System.out.println("Mesazh nga " + clientAddress + " -> " + message);
+
+                System.out.println("Mesazh nga " + clientAddress);
 
                                 //  6 
                 // Kontrollojme nese klienti po kerkon qasje ne fajlla
