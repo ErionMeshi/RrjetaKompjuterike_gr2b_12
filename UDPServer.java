@@ -1,59 +1,83 @@
 import java.net.*;
 import java.util.*;
+import java.io.*;
 
 public class UDPServer {
 
-    //IP dhe PORT
-public static final int PORT = 1234;
-public static final String SERVER_IP = "0.0.0.0";
+    // HAPI 1
+    public static final int PORT = 1234;
+    public static final String SERVER_IP = "0.0.0.0";
 
-//Limiti dhe lista e klienteve
-public static final int MAX_Clients = 4;
+    // HAPI 2
+    public static final int MAX_CLIENTS = 4;
+    public static Set<String> clients = new HashSet<>();
 
-public static Set<String> clients = new HashSet<>();
-public static void main(String[] args) {
+    // HAPI 5 (timeout)
+    public static final long TIMEOUT = 30000; // 30 sekonda
+    public static Map<String, Long> lastSeen = new HashMap<>();
 
-    try {
-        InetAddress ipAddress = InetAddress.getByName(SERVER_IP);
-        DatagramSocket serverSocket = new DatagramSocket(PORT, ipAddress);
+    // HAPI 6 (admin)
+    public static final String ADMIN_CLIENT = "/127.0.0.1:5001";
+    public static final String SERVER_FOLDER = "files";
 
-        byte[] buffer = new byte[1024];
+    public static void main(String[] args) {
+        try {
+            InetAddress ipAddress = InetAddress.getByName(SERVER_IP);
+            DatagramSocket serverSocket = new DatagramSocket(PORT, ipAddress);
 
-        System.out.println("Serveri po dëgjon në port: " + PORT);
+            byte[] buffer = new byte[1024];
 
-        while (true) { //Pranon mesazhin
-            DatagramPacket packeta = new DatagramPacket(buffer, buffer.length);
-            serverSocket.receive(packeta);
+            System.out.println("Serveri po dëgjon në port: " + PORT);
 
-            String clientAddress = packeta.getAddress().toString() +  ":" + packeta.getPort();
-        
-        //Menaxhimi i klienteve    
-            if (!clients.contains(clientAddress)) {
-                if (clients.size() >= MAX_Clients) {
-                     System.out.println("Refuzohet klienti: " + clientAddress);
-                     continue;
-                 } else {
-                     clients.add(clientAddress);
-                    System.out.println("Klient i ri: " + clientAddress);
-                 }
-             } System.out.println("Mesazh nga " + clientAddress);
+            while (true) {
+                DatagramPacket packeta = new DatagramPacket(buffer, buffer.length);
+                serverSocket.receive(packeta);
 
-                 // HAPI 3: leximi dhe përpunimi i kërkesës
-            String message = new String(packeta.getData(), 0, packeta.getLength());
-            System.out.println("Kërkesë nga " + clientAddress + ": " + message);
+                String clientAddress = packeta.getAddress().toString() + ":" + packeta.getPort();
 
-            String response = handleRequest(message);
+                // HAPI 5: update last seen
+                lastSeen.put(clientAddress, System.currentTimeMillis());
 
-        
-        // dërgo përgjigje
-                byte[] sendData = response.getBytes();
-                DatagramPacket responsePacket = new DatagramPacket(
-                        sendData,
-                        sendData.length,
-                        packeta.getAddress(),
-                        packeta.getPort()
-                );
-        serverSocket.send(responsePacket);
+                // HAPI 2: menaxhimi i klientëve
+                if (!clients.contains(clientAddress)) {
+                    if (clients.size() >= MAX_CLIENTS) {
+                        System.out.println("Refuzohet klienti: " + clientAddress);
+                        continue;
+                    } else {
+                        clients.add(clientAddress);
+                        System.out.println("Klient i ri: " + clientAddress);
+                    }
+                }
+
+                // HAPI 3: lexo mesazhin
+                String message = new String(packeta.getData(), 0, packeta.getLength());
+                System.out.println("Kërkesë nga " + clientAddress + ": " + message);
+
+                String response;
+
+                // HAPI 6: kontroll për file access
+                if (message.equalsIgnoreCase("LIST_FILES")) {
+                    if (clientAddress.equals(ADMIN_CLIENT)) {
+                        response = listFiles();
+                    } else {
+                        response = "Nuk keni qasje";
+                    }
+                } else if (message.startsWith("READ_FILE ")) {
+                    if (clientAddress.equals(ADMIN_CLIENT)) {
+                        String fileName = message.substring(10).trim();
+                        response = readFile(fileName);
+                    } else {
+                        response = "Nuk keni qasje";
+                    }
+                } else {
+                    // kërkesa normale
+                    response = handleRequest(message);
+                }
+
+                sendResponse(serverSocket, packeta, response);
+
+                // HAPI 5: largo klientët joaktiv
+                removeInactiveClients();
             }
 
         } catch (Exception e) {
@@ -61,7 +85,7 @@ public static void main(String[] args) {
         }
     }
 
-    // Përpunimi i kërkesave
+    // HAPI 3
     public static String handleRequest(String request) {
         request = request.trim().toLowerCase();
 
@@ -74,6 +98,64 @@ public static void main(String[] args) {
                 return "Numri i klienteve: " + clients.size();
             default:
                 return "Kerkese e panjohur!";
+        }
+    }
+
+    // dërgimi i përgjigjes
+    public static void sendResponse(DatagramSocket socket, DatagramPacket request, String response) throws Exception {
+        byte[] data = response.getBytes();
+        DatagramPacket packet = new DatagramPacket(
+                data,
+                data.length,
+                request.getAddress(),
+                request.getPort()
+        );
+        socket.send(packet);
+    }
+
+    // HAPI 5
+    public static void removeInactiveClients() {
+        long now = System.currentTimeMillis();
+
+        Iterator<String> it = clients.iterator();
+        while (it.hasNext()) {
+            String client = it.next();
+            if (now - lastSeen.getOrDefault(client, 0L) > TIMEOUT) {
+                System.out.println("Klienti u largua (timeout): " + client);
+                it.remove();
+                lastSeen.remove(client);
+            }
+        }
+    }
+
+    // HAPI 6
+    public static String listFiles() {
+        File folder = new File(SERVER_FOLDER);
+        File[] files = folder.listFiles();
+
+        if (files == null) return "Nuk ka fajlla";
+
+        StringBuilder sb = new StringBuilder();
+        for (File f : files) {
+            sb.append(f.getName()).append("\n");
+        }
+        return sb.toString();
+    }
+
+    public static String readFile(String fileName) {
+        try {
+            File file = new File(SERVER_FOLDER + "/" + fileName);
+            Scanner sc = new Scanner(file);
+
+            StringBuilder sb = new StringBuilder();
+            while (sc.hasNextLine()) {
+                sb.append(sc.nextLine()).append("\n");
+            }
+            sc.close();
+            return sb.toString();
+
+        } catch (Exception e) {
+            return "Gabim ne leximin e fajllit";
         }
     }
 }
