@@ -12,11 +12,14 @@ public class UDPServer {
     public static final int MAX_CLIENTS = 4;
     public static Set<String> clients = new HashSet<>();
 
-    // HAPI 5 (timeout)
+    // HAPI 4
+    public static List<String> messageLog = new ArrayList<>();
+
+    // HAPI 5 
     public static final long TIMEOUT = 30000; // 30 sekonda
     public static Map<String, Long> lastSeen = new HashMap<>();
 
-    // HAPI 6 (admin)
+    // HAPI 6 
     public static final String ADMIN_CLIENT = "/127.0.0.1:5001";
     public static final String SERVER_FOLDER = "files";
 
@@ -52,6 +55,9 @@ public class UDPServer {
                 // HAPI 3: lexo mesazhin
                 String message = new String(packeta.getData(), 0, packeta.getLength());
                 System.out.println("Kërkesë nga " + clientAddress + ": " + message);
+
+                // hapi 4: ruan mesazhin
+                messageLog.add(clientAddress + " -> " + message);
 
                 String response;
 
