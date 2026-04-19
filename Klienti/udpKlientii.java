@@ -3,9 +3,7 @@ package udp;
 import javax.xml.crypto.Data;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
-
 import java.net.InetAddress;
-import java.net.InetAddresns;
 import java.util.Scanner;
 
 public class udpKlientii {
@@ -13,25 +11,23 @@ public class udpKlientii {
     public static void main(String[]args){
         try{
             DatagramSocket socket =new DatagramSocket();
-
             InetAddress serverAddresss=InetAddress.getByName("127.0.0.1");
             int port=1234;
-
             Scanner scanner=new Scanner(System.in);
 
             System.out.println("Zgjidh rolin (admin/user): ");
-            String role = scanner.nextLine().trim().toLowerCase();
+            String role= scanner.nextLine();
 
             sendMessage(socket, serverAddresss,port, "ROLE: "+role);
 
             String response=receiveResponse(socket);
             System.out.println("Server: "+response);
 
-            
+
+
             while(true){
                 System.out.println("shkruaj komanden: ");
-                String message=scanner.nextLine();
-
+                String command=scanner.nextLine();
                 if (command.equalsIgnoreCase("exit")) {
                     System.out.println("Klienti po mbyllet...");
                     break;
@@ -43,7 +39,7 @@ public class udpKlientii {
                     }
                     Thread.sleep(1000); //delay per user
                 }
-                 if (command.startsWith("/upload")) {
+                if (command.startsWith("/upload")) {
                     String[] parts = command.split(" ");
                     if (parts.length < 2) {
                         System.out.println("Perdor: /upload filename");
@@ -70,7 +66,7 @@ public class udpKlientii {
 
                 response=receiveResponse(socket);
 
-                    if (command.startsWith("/download") && !response.startsWith("ERROR")) {
+                if (command.startsWith("/download") && !response.startsWith("ERROR")) {
                     String fileName = command.split(" ")[1];
 
                     java.io.FileWriter fw = new java.io.FileWriter("download_" + fileName);
@@ -89,7 +85,7 @@ public class udpKlientii {
             e.printStackTrace();
         }
     }
-        public static void sendMessage(DatagramSocket socket,InetAddress address, int port, String message) throws Exception{
+    public static void sendMessage(DatagramSocket socket,InetAddress address, int port, String message) throws Exception{
 
         byte[]data=message.getBytes();
         DatagramPacket packet=new DatagramPacket(data,data.length,address,port);
@@ -102,3 +98,4 @@ public class udpKlientii {
         return new String(packet.getData(),0,packet.getLength());
     }
 }
+
