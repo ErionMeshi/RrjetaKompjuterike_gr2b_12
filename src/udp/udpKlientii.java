@@ -18,7 +18,7 @@ public class udpKlientii {
             Scanner scanner=new Scanner(System.in);
 
             System.out.println("Zgjidh rolin (admin/user): ");
-            String role= scanner.nextLine();
+            String role = scanner.nextLine().trim().toLowerCase();
 
             sendMessage(socket, serverAddresss,port, "ROLE: "+role);
 
