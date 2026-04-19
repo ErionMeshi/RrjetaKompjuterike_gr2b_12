@@ -16,6 +16,16 @@ public class udpKlientii {
             int port=1234;
 
             Scanner scanner=new Scanner(System.in);
+
+            System.out.println("Zgjidh rolin (admin/user): ");
+            String role= scanner.nextLine();
+
+            sendMessage(socket, serverAddresss,port, "ROLE: "+role);
+
+            String response=receiveResponse(socket);
+            System.out.println("Server: "+response);
+
+            
             while(true){
                 System.out.println("shkruaj komanden: ");
                 String message=scanner.nextLine();
@@ -40,5 +50,17 @@ public class udpKlientii {
         catch(Exception e){
             e.printStackTrace();
         }
+    }
+        public static void sendMessage(DatagramSocket socket,InetAddress address, int port, String message) throws Exception{
+
+        byte[]data=message.getBytes();
+        DatagramPacket packet=new DatagramPacket(data,data.length,address,port);
+        socket.send(packet);
+    }
+    public static String receiveResponse(DatagramSocket socket) throws Exception{
+        byte[]buffer=new byte[65535];
+        DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+        socket.receive(packet);
+        return new String(packet.getData(),0,packet.getLength());
     }
 }
