@@ -41,5 +41,5 @@ Ky projekt është bërë për qëllime mësimore dhe tregon bazat e komunikimit
 👥 Autorët gr.12
 Erion Meshi,
 Arbnor Dragaj,
-Erduard Basha,
+Erdoart Basha,
 Orlind Bajraktari.
