@@ -4,86 +4,80 @@ import java.io.*;
 
 public class UDPServer {
 
-    // HAPI 1
+    // 1️. IP + PORT
     public static final int PORT = 1234;
     public static final String SERVER_IP = "0.0.0.0";
 
-    // HAPI 2
+    // 2️. LIMIT KLIENTESH
     public static final int MAX_CLIENTS = 4;
     public static Set<String> clients = new HashSet<>();
-
-    // HAPI 4
-    public static List<String> messageLog = new ArrayList<>();
-
-    // HAPI 5 
-    public static final long TIMEOUT = 30000; // 30 sekonda
     public static Map<String, Long> lastSeen = new HashMap<>();
 
-    // HAPI 6 
-    public static final String ADMIN_CLIENT = "/127.0.0.1:5001";
-    public static final String SERVER_FOLDER = "files";
+    // 4️. LOG MESAZHESH
+    public static List<String> messageLog = new ArrayList<>();
+
+    // ROLE SYSTEM
+    public static Map<String, String> roles = new HashMap<>();
+
+    // 5️. TIMEOUT
+    public static final long TIMEOUT = 30000;
 
     public static void main(String[] args) {
         try {
-            InetAddress ipAddress = InetAddress.getByName(SERVER_IP);
-            DatagramSocket serverSocket = new DatagramSocket(PORT, ipAddress);
-
-            byte[] buffer = new byte[1024];
+            DatagramSocket serverSocket =
+                    new DatagramSocket(PORT, InetAddress.getByName(SERVER_IP));
 
             System.out.println("Serveri po dëgjon në port: " + PORT);
 
+            // HTTP SERVER
+            new Thread(() -> startHttpServer()).start();
+
             while (true) {
-                DatagramPacket packeta = new DatagramPacket(buffer, buffer.length);
-                serverSocket.receive(packeta);
 
-                String clientAddress = packeta.getAddress().toString() + ":" + packeta.getPort();
+                byte[] buffer = new byte[65535];
+                
+                DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
+                serverSocket.receive(packet);
 
-                // HAPI 5: update last seen
-                lastSeen.put(clientAddress, System.currentTimeMillis());
+                String clientAddress =
+                        packet.getAddress().toString() + ":" + packet.getPort();
 
-                // HAPI 2: menaxhimi i klientëve
+                // LIMIT KLIENTESH
                 if (!clients.contains(clientAddress)) {
                     if (clients.size() >= MAX_CLIENTS) {
                         System.out.println("Refuzohet klienti: " + clientAddress);
                         continue;
-                    } else {
-                        clients.add(clientAddress);
-                        System.out.println("Klient i ri: " + clientAddress);
                     }
+                    clients.add(clientAddress);
+                    System.out.println("Klient i ri: " + clientAddress);
                 }
 
-                // HAPI 3: lexo mesazhin
-                String message = new String(packeta.getData(), 0, packeta.getLength());
-                System.out.println("Kërkesë nga " + clientAddress + ": " + message);
+                // UPDATE AKTIVITET
+                lastSeen.put(clientAddress, System.currentTimeMillis());
 
-                // hapi 4: ruan mesazhin
+                String message =
+                        new String(packet.getData(), 0, packet.getLength());
+
+                System.out.println("Mesazh nga " + clientAddress + ": " + message);
+
+                // LOG
                 messageLog.add(clientAddress + " -> " + message);
 
-                String response;
-
-                // HAPI 6: kontroll për file access
-                if (message.equalsIgnoreCase("LIST_FILES")) {
-                    if (clientAddress.equals(ADMIN_CLIENT)) {
-                        response = listFiles();
-                    } else {
-                        response = "Nuk keni qasje";
-                    }
-                } else if (message.startsWith("READ_FILE ")) {
-                    if (clientAddress.equals(ADMIN_CLIENT)) {
-                        String fileName = message.substring(10).trim();
-                        response = readFile(fileName);
-                    } else {
-                        response = "Nuk keni qasje";
-                    }
-                } else {
-                    // kërkesa normale
-                    response = handleRequest(message);
-                }
-
-                sendResponse(serverSocket, packeta, response);
-
-                // HAPI 5: largo klientët joaktiv
+                // REMOVE INACTIVE
                 removeInactiveClients();
+
+                // HANDLE
+                String response = handleRequest(message, clientAddress);
+
+                byte[] data = response.getBytes();
+
+                DatagramPacket responsePacket = new DatagramPacket(
+                        data, data.length,
+                        packet.getAddress(),
+                        packet.getPort()
+                );
+
+                serverSocket.send(responsePacket);
             }
 
         } catch (Exception e) {
@@ -91,58 +85,105 @@ public class UDPServer {
         }
     }
 
-    // HAPI 3
-    public static String handleRequest(String request) {
-        request = request.trim().toLowerCase();
+    // === HANDLE ===
 
-        switch (request) {
-            case "hello":
-                return "Pershendetje nga serveri!";
-            case "time":
-                return new Date().toString();
-            case "clients":
-                return "Numri i klienteve: " + clients.size();
-            default:
-                return "Kerkese e panjohur!";
+    public static String handleRequest(String message, String clientAddress) {
+
+        message = message.trim();
+
+        // ROLE
+        if (message.startsWith("ROLE:")) {
+            String role = message.substring(5).trim();
+            roles.put(clientAddress, role);
+            return "Roli u vendos: " + role;
         }
-    }
 
-    // dërgimi i përgjigjes
-    public static void sendResponse(DatagramSocket socket, DatagramPacket request, String response) throws Exception {
-        byte[] data = response.getBytes();
-        DatagramPacket packet = new DatagramPacket(
-                data,
-                data.length,
-                request.getAddress(),
-                request.getPort()
-        );
-        socket.send(packet);
-    }
+        String role = roles.getOrDefault(clientAddress, "user").toLowerCase();
 
-    // HAPI 5
-    public static void removeInactiveClients() {
-        long now = System.currentTimeMillis();
+        // KOMANDA
 
-        Iterator<String> it = clients.iterator();
-        while (it.hasNext()) {
-            String client = it.next();
-            if (now - lastSeen.getOrDefault(client, 0L) > TIMEOUT) {
-                System.out.println("Klienti u largua (timeout): " + client);
-                it.remove();
-                lastSeen.remove(client);
+        if (message.equals("/list")) {
+            if (!role.equals("admin"))
+                 return "Nuk ke privilegje!";
+            return listFiles();
+        }
+
+        if (message.startsWith("/read")) {
+            if (!role.equals("admin") && !role.equals("user")) {
+                 return "Nuk ke privilegje!";
+            return readFile(message.substring(6));
+        }
+
+        if (message.startsWith("/delete")) {
+            if (!role.equals("admin"))
+                return "Nuk ke privilegje!";
+            File f = new File(message.substring(8));
+            return f.exists() && f.delete()
+                    ? "File u fshi!"
+                    : "File nuk ekziston!";
+        }
+
+        if (message.startsWith("/search")) {
+            if (!role.equals("admin")) return "Nuk ke privilegje!";
+            String keyword = message.substring(8);
+
+            StringBuilder sb = new StringBuilder();
+            for (File f : new File(".").listFiles()) {
+                if (f.getName().contains(keyword)) {
+                    sb.append(f.getName()).append("\n");
+                }
+            }
+            return sb.toString();
+        }
+
+        if (message.startsWith("/info")) {
+            if (!role.equals("admin")) return "Nuk ke privilegje!";
+            File f = new File(message.substring(6));
+            if (!f.exists()) return "Nuk ekziston";
+
+            return "Size: " + f.length() +
+                    "\nLast Modified: " + new Date(f.lastModified());
+        }
+
+        if (message.startsWith("/upload")) {
+            if (!role.equals("admin")) return "Nuk ke privilegje!";
+            try {
+                String[] parts = message.split(" ", 3);
+                FileWriter fw = new FileWriter(parts[1]);
+                fw.write(parts[2]);
+                fw.close();
+                return "Upload OK";
+            } catch (Exception e) {
+                return "Gabim upload";
             }
         }
+
+        if (message.startsWith("/download")) {
+            if (!role.equals("admin")) return "Nuk ke privilegje!";
+            try {
+                Scanner sc = new Scanner(new File(message.substring(10)));
+                StringBuilder sb = new StringBuilder();
+
+                while (sc.hasNextLine()) {
+                    sb.append(sc.nextLine()).append("\n");
+                }
+
+                return sb.toString();
+            } catch (Exception e) {
+                return "ERROR";
+            }
+        }
+
+        return "Komande e panjohur!";
     }
 
-    // HAPI 6
+    // ================= FILE =================
+
     public static String listFiles() {
-        File folder = new File(SERVER_FOLDER);
-        File[] files = folder.listFiles();
-
-        if (files == null) return "Nuk ka fajlla";
-
+        File folder = new File(".");
         StringBuilder sb = new StringBuilder();
-        for (File f : files) {
+
+        for (File f : folder.listFiles()) {
             sb.append(f.getName()).append("\n");
         }
         return sb.toString();
@@ -150,18 +191,91 @@ public class UDPServer {
 
     public static String readFile(String fileName) {
         try {
-            File file = new File(SERVER_FOLDER + "/" + fileName);
-            Scanner sc = new Scanner(file);
-
+            Scanner sc = new Scanner(new File(fileName));
             StringBuilder sb = new StringBuilder();
+
             while (sc.hasNextLine()) {
                 sb.append(sc.nextLine()).append("\n");
             }
-            sc.close();
+
             return sb.toString();
 
         } catch (Exception e) {
-            return "Gabim ne leximin e fajllit";
+            return "Gabim ne lexim!";
         }
+    }
+
+    // ================= TIMEOUT =================
+
+    public static void removeInactiveClients() {
+        long now = System.currentTimeMillis();
+
+        Iterator<String> it = clients.iterator();
+        while (it.hasNext()) {
+            String client = it.next();
+
+            if (now - lastSeen.getOrDefault(client, 0L) > TIMEOUT) {
+                System.out.println("Klienti u largua: " + client);
+                it.remove();
+                lastSeen.remove(client);
+            }
+        }
+    }
+
+    // ================= HTTP SERVER =================
+
+    public static void startHttpServer() {
+        try {
+            ServerSocket httpSocket = new ServerSocket(8080);
+            System.out.println("HTTP server ne port 8080");
+
+            while (true) {
+                Socket client = httpSocket.accept();
+
+                BufferedReader in = new BufferedReader(
+                        new InputStreamReader(client.getInputStream())
+                );
+
+                OutputStream out = client.getOutputStream();
+
+                String requestLine = in.readLine();
+
+                if (requestLine != null && requestLine.contains("GET /stats")) {
+                    String response = getStats();
+
+                    String httpResponse =
+                            "HTTP/1.1 200 OK\r\n" +
+                            "Content-Type: text/plain\r\n\r\n" +
+                            response;
+
+                    out.write(httpResponse.getBytes());
+                } else {
+                    out.write("HTTP/1.1 404 Not Found\r\n\r\n".getBytes());
+                }
+
+                client.close();
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static String getStats() {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("Klientet aktiv: ").append(clients.size()).append("\n");
+
+        sb.append("IP:\n");
+        for (String c : clients) {
+            sb.append(c).append("\n");
+        }
+
+        sb.append("\nMesazhet:\n");
+        for (String m : messageLog) {
+            sb.append(m).append("\n");
+        }
+
+        return sb.toString();
     }
 }
