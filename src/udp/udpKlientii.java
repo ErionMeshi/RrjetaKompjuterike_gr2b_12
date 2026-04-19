@@ -30,20 +30,56 @@ public class udpKlientii {
                 System.out.println("shkruaj komanden: ");
                 String message=scanner.nextLine();
 
-                byte[]sendData=message.getBytes();
+                if (command.equalsIgnoreCase("exit")) {
+                    System.out.println("Klienti po mbyllet...");
+                    break;
+                }
+                if (role.equals("user")) {
+                    if (!command.startsWith("/read")) {
+                        System.out.println("Vetem /read lejohet për user!");
+                        continue;
+                    }
+                    Thread.sleep(1000); //delay per user
+                }
+                 if (command.startsWith("/upload")) {
+                    String[] parts = command.split(" ");
+                    if (parts.length < 2) {
+                        System.out.println("Perdor: /upload filename");
+                        continue;
+                    }
+                    String fileName = parts[1];
+                    String content = "";
+                    try {
+                        Scanner fileScanner = new Scanner(new java.io.File(fileName));
+                        while (fileScanner.hasNextLine()) {
+                            content += fileScanner.nextLine() + "\\n";
+                        }
+                        fileScanner.close();
 
-                DatagramPacket sendPacket=new DatagramPacket(sendData,sendData.length,serverAddresss,port);
+                        command = "/upload " + fileName + " " + content;
 
-                socket.send(sendPacket);
+                    } catch (Exception e) {
+                        System.out.println("File nuk ekziston!");
+                        continue;
+                    }
+                }
 
+                sendMessage(socket,serverAddresss,port,command);
 
-                byte[]buffer=new byte[4096];
-                DatagramPacket responsePacket=new DatagramPacket(buffer,buffer.length);
+                response=receiveResponse(socket);
 
-                socket.receive(responsePacket);
-                String response=new String(responsePacket.getData(),0,responsePacket.getLength());
+                    if (command.startsWith("/download") && !response.startsWith("ERROR")) {
+                    String fileName = command.split(" ")[1];
 
-                System.out.println("server: "+response);
+                    java.io.FileWriter fw = new java.io.FileWriter("download_" + fileName);
+                    fw.write(response);
+                    fw.close();
+
+                    System.out.println("File u ruajt si: download_" + fileName);
+                } else {
+                    System.out.println("Server: " + response);
+                }
+
 
             }
         }
